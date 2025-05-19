@@ -4,6 +4,8 @@ from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning import LightningDataModule
 import torchvision.transforms as T
 from PIL import Image
+from src.utils import tokenize_latex
+from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 
 class LatexDataset(Dataset):
@@ -34,16 +36,15 @@ class LatexDataset(Dataset):
     
     def __getitem__(self, idx):
         image_path, formula, _ = self.data[idx]
-        
-        # Load and preprocess image
         image = Image.open(image_path).convert('RGB')
         if self.transform:
             image = self.transform(image)
-        
-        # Return image and formula
+        # Токенизация формулы
+        tokenized = tokenize_latex(formula)  # например, возвращает список int
+        tokenized = torch.tensor(tokenized, dtype=torch.long)
         return {
             'image': image,
-            'formula': formula,
+            'formula': tokenized,  # теперь это тензор!
             'image_path': image_path,
         }
 
@@ -109,6 +110,17 @@ class LatexOCRDataModule(LightningDataModule):
             transform=self.val_transform,
             max_seq_len=self.max_seq_len
         )
+
+    def collate_fn(self, batch):
+        images = torch.stack([item['image'] for item in batch])
+        formulas = [item['formula'] for item in batch]
+        formulas_padded = pad_sequence(formulas, batch_first=True, padding_value=0)  # pad_token_id
+        image_paths = [item['image_path'] for item in batch]
+        return {
+            'image': images,
+            'formula': formulas_padded,
+            'image_path': image_paths,
+        }
     
     def train_dataloader(self):
         return DataLoader(
@@ -116,7 +128,8 @@ class LatexOCRDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=True,
             num_workers=self.num_workers,
-            pin_memory=True
+            pin_memory=True,
+            collate_fn=self.collate_fn
         )
     
     def val_dataloader(self):
@@ -125,7 +138,8 @@ class LatexOCRDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
-            pin_memory=True
+            pin_memory=True,
+            collate_fn=self.collate_fn
         )
     
     def test_dataloader(self):
@@ -134,5 +148,6 @@ class LatexOCRDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
-            pin_memory=True
+            pin_memory=True,
+            collate_fn=self.collate_fn
         )
