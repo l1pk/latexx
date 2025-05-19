@@ -1,16 +1,90 @@
-import pytorch_lightning as pl
-from data_module import FormulaDataModule
-from model import FormulaModel
+import os
 import hydra
 from omegaconf import DictConfig
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-@hydra.main(config_path="config.yaml")
-def main(config: DictConfig):
-    data_module = FormulaDataModule(config.data.img_folder, config.data.annotations)
-    model = FormulaModel()
+from .model import LatexOCRModel
+from .data_module import LatexOCRDataModule
 
-    trainer = pl.Trainer(max_epochs=config.training.epochs)
+@hydra.main(config_path="../", config_name="config", version_base="1.3")
+def train(config: DictConfig):
+    # Set up seeds for reproducibility
+    pl.seed_everything(config.training.seed)
+    
+    # Initialize data module
+    data_module = LatexOCRDataModule(
+        data_dir=config.data.data_dir,
+        batch_size=config.data.batch_size,
+        num_workers=config.data.num_workers,
+        train_val_test_split=config.data.train_val_test_split,
+        img_size=config.data.img_size,
+        max_seq_len=config.model.max_seq_len
+    )
+    
+    # Initialize model
+    model = LatexOCRModel(
+        vocab_size=config.model.vocab_size,
+        embedding_dim=config.model.embedding_dim,
+        hidden_dim=config.model.hidden_dim,
+        encoder_name=config.model.encoder_name,
+        num_decoder_layers=config.model.num_decoder_layers,
+        nhead=config.model.nhead,
+        dropout=config.model.dropout,
+        learning_rate=config.training.learning_rate,
+        weight_decay=config.training.weight_decay,
+        max_seq_len=config.model.max_seq_len,
+        pad_token_id=config.model.pad_token_id,
+        sos_token_id=config.model.sos_token_id,
+        eos_token_id=config.model.eos_token_id
+    )
+    
+    # Set up callbacks
+    checkpoint_callback = ModelCheckpoint(
+        filename="{epoch}-{val_loss:.4f}-{val_bleu:.4f}",
+        save_top_k=3,
+        verbose=True,
+        monitor="val_bleu",
+        mode="max"
+    )
+    
+    early_stopping_callback = EarlyStopping(
+        monitor="val_bleu",
+        patience=config.training.patience,
+        mode="max"
+    )
+    
+    lr_monitor = LearningRateMonitor(logging_interval="step")
+    
+    # Set up logger
+    loggers = [TensorBoardLogger(save_dir=config.logging.log_dir, name=config.logging.experiment_name)]
+    
+    if config.logging.use_wandb:
+        wandb_logger = WandbLogger(
+            project=config.logging.wandb_project,
+            name=config.logging.experiment_name
+        )
+        loggers.append(wandb_logger)
+    
+    # Initialize trainer
+    trainer = pl.Trainer(
+        max_epochs=config.training.max_epochs,
+        accelerator="gpu" if config.training.gpus else "cpu",
+        devices=config.training.gpus if config.training.gpus else None,
+        callbacks=[checkpoint_callback, early_stopping_callback, lr_monitor],
+        logger=loggers,
+        precision=config.training.precision,
+        gradient_clip_val=config.training.gradient_clip_val,
+        accumulate_grad_batches=config.training.accumulate_grad_batches,
+        log_every_n_steps=config.logging.log_every_n_steps
+    )
+    
+    # Train model
     trainer.fit(model, data_module)
+    
+    # Test model
+    trainer.test(model, data_module)
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    train()

@@ -1,132 +1,82 @@
-# src/utils.py
-
-import os
-import cv2
+import torch
 import numpy as np
+from PIL import Image
+import torchvision.transforms as T
+from torchmetrics.text import BLEUScore, WordErrorRate
+from typing import List, Tuple, Dict, Union
 
-def load_image(image_path):
-    """
-    Load an image from the specified path.
+def preprocess_image(image_path: str, img_size: int = 224) -> torch.Tensor:
+    """Preprocess an image for inference."""
+    transform = T.Compose([
+        T.Resize((img_size, img_size)),
+        T.ToTensor(),
+        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
     
-    Parameters:
-    - image_path (str): The path to the image file.
-    
-    Returns:
-    - image (ndarray): Loaded image in BGR format.
-    """
-    if not os.path.exists(image_path):
-        raise FileNotFoundError(f"Image not found: {image_path}")
-    return cv2.imread(image_path)
+    img = Image.open(image_path).convert('RGB')
+    return transform(img).unsqueeze(0)
 
-def preprocess_image(image, target_size=(224, 224)):
-    """
-    Preprocess the image for model input.
-    
-    Parameters:
-    - image (ndarray): The image to preprocess.
-    - target_size (tuple): Desired size of the image.
-    
-    Returns:
-    - preprocessed_image (ndarray): Resized and normalized image.
-    """
-    image = cv2.resize(image, target_size)
-    image = image.astype('float32') / 255.0  # Normalize to [0, 1]
-    return np.expand_dims(image, axis=0)  # Add batch dimension
+def compute_bleu(predictions: List[str], references: List[List[str]]) -> float:
+    """Compute BLEU score between predictions and references."""
+    bleu_metric = BLEUScore()
+    return bleu_metric(predictions, references).item()
 
-def save_results(results, save_directory, filename):
-    """
-    Save the results to a specified directory.
-    
-    Parameters:
-    - results: The results to save (e.g., numpy array, list).
-    - save_directory (str): Directory to save the results.
-    - filename (str): Name of the file.
-    
-    """
-    if not os.path.exists(save_directory):
-        os.makedirs(save_directory)
-    
-    filepath = os.path.join(save_directory, filename)
-    np.save(filepath, results)  # Save as numpy array
-    print(f"Results saved to: {filepath}")
-import os
-import cv2
-import numpy as np
+def compute_wer(predictions: List[str], references: List[str]) -> float:
+    """Compute Word Error Rate between predictions and references."""
+    wer_metric = WordErrorRate()
+    return wer_metric(predictions, references).item()
 
-def load_image(image_path):
-    """
-    Load an image from the specified path.
-    
-    Parameters:
-    - image_path (str): The path to the image file.
-    
-    Returns:
-    - image (ndarray): Loaded image in BGR format.
-    """
-    if not os.path.isfile(image_path):
-        raise FileNotFoundError(f"Image not found: {image_path}")
-    return cv2.imread(image_path)
+def tokenize_latex(formula: str, tokenizer=None) -> List[int]:
+    """Tokenize LaTeX formula to token IDs."""
+    # This is a placeholder - in real implementation would use tokenizer
+    if tokenizer is None:
+        # Return placeholder tokenization
+        return [1] + [i % 100 for i in range(len(formula))] + [2]
+    else:
+        return tokenizer.encode(formula)
 
-def preprocess_image(image, target_size=(224, 224)):
-    """
-    Preprocess the image for model input.
-    
-    Parameters:
-    - image (ndarray): The image to preprocess.
-    - target_size (tuple): Desired size of the image.
-    
-    Returns:
-    - preprocessed_image (ndarray): Resized and normalized image.
-    """
-    image = cv2.resize(image, target_size)
-    image = image.astype('float32') / 255.0  # Normalize to [0, 1]
-    return np.expand_dims(image, axis=0)  # Add batch dimension
+def detokenize_latex(token_ids: List[int], tokenizer=None) -> str:
+    """Convert token IDs back to LaTeX formula."""
+    # This is a placeholder - in real implementation would use tokenizer
+    if tokenizer is None:
+        # Return placeholder detokenization
+        return "placeholder_formula"
+    else:
+        return tokenizer.decode(token_ids)
 
-def save_results(results, save_directory, filename):
-    """
-    Save the results to a specified directory.
+def visualize_attention(image: torch.Tensor, attention_weights: torch.Tensor, save_path: str = None):
+    """Visualize attention weights on the image."""
+    import matplotlib.pyplot as plt
     
-    Parameters:
-    - results: The results to save (e.g., numpy array, list).
-    - save_directory (str): Directory to save the results.
-    - filename (str): Name of the file.
+    # Denormalize image
+    mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+    img = image.clone()
+    img = img * std + mean
+    img = img.permute(1, 2, 0).cpu().numpy()
+    img = np.clip(img, 0, 1)
     
-    """
-    if not os.path.exists(save_directory):
-        os.makedirs(save_directory)
+    # Resize attention to match image size
+    h, w = img.shape[:2]
+    attention = attention_weights.cpu().numpy()
+    attention = np.mean(attention, axis=0)  # Average attention across heads
     
-    filepath = os.path.join(save_directory, filename)
-    np.save(filepath, results)  # Save as numpy array
-    print(f"Results saved to: {filepath}")
-
-def validate_image(image):
-    """
-    Validate the image.
+    # Create figure
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
     
-    Parameters:
-    - image (ndarray): The image to validate.
+    # Plot original image
+    ax[0].imshow(img)
+    ax[0].set_title("Original Image")
+    ax[0].axis('off')
     
-    Returns:
-    - bool: Whether the image is valid.
-    """
-    if image is None:
-        return False
-    if len(image.shape) != 3 or image.shape[2] != 3:
-        return False
-    return True
-
-def load_and_preprocess_image(image_path, target_size=(224, 224)):
-    """
-    Load and preprocess the image.
+    # Plot attention overlay
+    ax[1].imshow(img)
+    ax[1].imshow(attention, alpha=0.5, cmap='jet')
+    ax[1].set_title("Attention Overlay")
+    ax[1].axis('off')
     
-    Parameters:
-    - image_path (str): The path to the image file.
-    - target_size (tuple): Desired size of the image.
-    
-    Returns:
-    - preprocessed_image (ndarray): Resized and normalized image.
-    """
-    image = load_image(image_path)
-    if not validate_image(image):
-        raise ValueError(f"Invalid image: {image_path}")
-    return preprocess_image(image, target_size)
+    if save_path:
+        plt.savefig(save_path)
+        plt.close()
+    else:
+        return fig

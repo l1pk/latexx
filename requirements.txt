@@ -2,4 +2,4 @@ torch
 torchvision
 pytorch-lightning
 hydra-core
-nltk  # For BLEU and WER metrics
+nltk

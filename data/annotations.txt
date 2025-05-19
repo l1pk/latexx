@@ -1,0 +1,36 @@
+image1   y = \text{ModFC}(x; c) = W(x \odot (1 + \alpha \text{LayerNorm}(W_c c))) + b
+image2   K_{ij} \sim \text{Concrete}(P_{ij}, \tau) \text{ with } P_{ij} = \exp\left[-\frac{d(s_i, s_j)}{\epsilon}\right]
+image3   q_u = \text{ModFC}(\theta_u^{(0)}, c_u), \quad k_{ij} = \text{ModFC}(x_j, c_u), \quad v_{ij} = \text{ModFC}(x_j, c_u)   
+image4   \hat{y}_u = \sum_j \frac{\alpha_{uj} \cdot k_{uj}}{\sqrt{d}} = v_{uj} y_u = \text{ModFC}(\hat{y}_u, c_u) \theta^{(1)}_u = \text{ModFFN}(y_u, c_u)
+image5   \lim_{\Delta x \to 0} \frac{\Delta y}{\Delta x} = 0
+image6   P = 2k \int_0^9 y x \, dy
+image7   \left[ (v_1 + v_5) + v_2 + v_3 \right] \lambda^2 + v_3 (v_1 + v_5) \lambda \simeq 2 v_2 v_3 (v_1 + v_5)
+image8   \lambda^2 \simeq \frac{2 \nu_2 \nu_3 (v_1 + v_5)}{\nu_2 + (v_1 + v_5)}
+image9   \lambda \simeq \sqrt{\frac{2 \nu_3 (v_1 + v_5)}{\nu_2 + (v_1 + v_5)}}
+image10      \hat{H}_{\text{mol}} = \hbar \omega_g (b^\dagger b) + \hbar \omega_Q (c^\dagger c) + \sum_{n=1}^3 \eta_{n}^{ \theta} (b^\dagger + b)^{\dagger} (c^{\dagger} + c)^{s}      
+image11      |\psi_{(UP, LP)}; 0\rangle = \frac{|1_{c}, 0, 0\rangle \pm |0_{c}, 1, 0\rangle}{\sqrt{2}}
+image12      \left( \Gamma^{(q)} \right)^{r} \times \left( \Gamma^{(Q)} \right)^{s} \subset \Gamma_A
+image13      \Psi(q_1, \ldots, q_f, t) = \sum_{j_1=1}^{N_1} \sum_{j_2=1}^{N_f} C_{j_1, \ldots, j_f}(t) \prod_{\kappa=1}^f \chi_{j_k}^{\kappa}(q_k)
+image14      |\varphi_{j_k}^{\kappa}(q_k, t)\rangle = \sum_{i_k=1}^{N_k} c_{i_k}^{\kappa}(t) | \chi^{(q_k)}_{i_k}\rangle
+image15      \Psi(q_1, \ldots, q_f, t) = \sum_{j_1=1}^{n_1} \cdots \sum_{j_f=1}^{n_f} A_{j_1,\ldots,j_f}(t) \prod_{\kappa=1}^{f} \varphi_{j_k}(q_k, t)
+image16      \theta^* := \arg\min_{\theta} \mathcal{L}(\theta)
+image17      \theta^{j+1} = \theta^j - \alpha g^j
+image18      \theta^*_A \in \arg\min_{\theta_A} \mathcal{L}_A(\theta_A, \theta^*_B), \quad \theta^*_B \in \arg\min_{\theta_B} \mathcal{L}_B(\theta^*, \theta_B)
+image19      \hat{g}^j := \hat{g}(\omega^j) := [g_A(\omega^j), g_B(\omega^j)] = [\hat{g}^j_A, \hat{g}^j_B]
+image20      \omega^{j+1} = F_\alpha(\omega^j) = \omega^j - \alpha \hat{g}^j
+image21      \mathcal{H} := \nabla_\omega \hat{g} = \begin{bmatrix} \nabla^2_{\theta_A}\mathcal{L}_A & \nabla_{\theta_A}\nabla_{\theta_B}\mathcal{L}_A \\ \nabla_{\theta_B}\nabla_{\theta_A}\mathcal{L}_B & \nabla^2_{\theta_B}\mathcal{L}_B \end{bmatrix}
+image22      \nabla_\omega F_\alpha(\omega) = I - \alpha \mathcal{H}
+image23      \text{Dec}(X, y) := \{N | \exists \mathcal{U}': \mathcal{X} \to y \text{ s.t. } N = t'(X_y)\}
+image24      I_{Y}[Z \to \text{Dec}(X,Y)] := \frac{1}{|Y|} \sum_{y \in Y} \frac{1}{|\text{Dec}(X, y)|} \sum_{N \in \text{Dec}(X,y)} I_{Y}[Z_y \to N]
+image25      \mathcal{L}_{DIB} := -I_{Y}[Z \to Y] + \beta^* I_{Y}[Z \to \text{Dec}(X,Y)]
+image26      \text{arg sort}(s) = \{ \sigma \in \mathcal{S}_n : \forall k \in [n-1], s_{\sigma(k)} \geq s_{\sigma(k+1)} \}
+image27      \forall f: \mathcal{X} \to \mathbb{R}^n, \quad R_{L,p}( \text{arg sort} \circ f ) - \inf_{h: \mathcal{X} \to \mathcal{S}_n} R_{L,p}(h) \leq \delta \left( R_{L,p}(f) - \inf_{g: \mathcal{X} \to \mathbb{R}} R_{L,p}(g) \right)
+image28      \ell(q, \sigma) = E_q[L(Y, \sigma)]
+image29      \forall q \in \mathcal{Q}, \exists \epsilon > 0, \forall s \in \mathbb{R}^n, \phi(q, s) - \phi(q) \leq \delta \Rightarrow \text{arg sort}(s) \subseteq \text{arg sort}(s) \subseteq \text{arg sort}(q, \sigma)
+image30      L \text{ is CEU } \Leftrightarrow \exists u: \mathcal{Y} \to \mathbb{R}^n, \forall q \in \mathcal{Q}, \text{arg sort}(E_q[u(y)]) \subseteq \text{arg min}_{\sigma \in \mathcal{S}_\theta} \ell(q, \sigma)
+image31      \forall \sigma \in \mathcal{S}_n, \forall j \neq i \in [n], \forall j' \neq i' \in [m], \ell(q^{(i)}_{top}, \sigma) = \ell(q^{(j)}_{top}, \tau_{j} \sigma)
+image32      \forall q \in \mathcal{Q}, \exists \epsilon > 0, \forall \delta \in (0, \delta_0), \text{argmin}_{\sigma \in \mathcal{S}_n} \ell(q, \sigma) = \bigcup_{s: \phi(q, s) - \phi(q) < \delta} \text{arg sort}(s)
+image33      \inf f:[0, 1] \to \mathbb{R}^n - \inf g \in \mathbb{R}^n, \, f^p - \beta \text{- Lipschitz}
+image34      T_{i,j} = \arg\min_{T \in SE(3)} \sum_{(p,q,w) \in C_{i,j}} w \|x_q - T(x_p)\|^2_2
+image35      c_{i,j} = \begin{cases} \max(0, \hat{c}_{i,j} - \gamma)/(1 - \gamma) & \text{if } |i - j| > 1 \\ \hat{c}_{i,j} & \text{otherwise.} \end{cases}
+image36      D_{\text{refine}}(p,q) = D_C(f_p, f_q) + \lambda \|x_p - x_q\|_2
