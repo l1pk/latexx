@@ -99,13 +99,11 @@ class LatexOCRModel(LightningModule):
     def forward(self, imgs, tgt_tokens=None, teacher_forcing_ratio=1.0):
         batch_size = imgs.size(0)
         
-        # Encode images
-        features = self.encoder(imgs)  # [B, C, H, W]
+        features = self.encoder(imgs)
         h, w = features.shape[2], features.shape[3]
-        features = features.permute(0, 2, 3, 1).reshape(batch_size, h * w, -1)  # [B, H*W, C]
-        
-        # Project features to hidden dimension
-        features = self.enc_projection(features)  # [B, H*W, hidden_dim]
+        features = features.permute(0, 2, 3, 1).reshape(features.size(0), h * w, -1)
+        features = self.enc_projection(features)
+        predictions = self.generate(features)
         
         if tgt_tokens is None:  # Inference mode
             return self.generate(features)
