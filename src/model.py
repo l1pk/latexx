@@ -267,6 +267,18 @@ class LatexOCRModel(LightningModule):
         }
     
     def _tokens_to_text(self, token_ids):
-        # This is a placeholder - in real implementation would use tokenizer
-        # to convert token IDs back to text
-        return ["placeholder_text" for _ in range(len(token_ids))]
+        # token_ids: Tensor [batch, seq_len]
+        # Пример для символьного токенизатора:
+        idx2char = self.idx2char  # Словарь: индекс -> символ
+        texts = []
+        for seq in token_ids:
+            # Уберите спец. токены и паддинг
+            seq = seq.tolist()
+            text = ""
+            for idx in seq:
+                if idx == self.eos_token_id:
+                    break
+                if idx > 2:  # если 0 - pad, 1 - sos, 2 - eos
+                    text += idx2char.get(idx, "")
+            texts.append(text)
+        return texts
