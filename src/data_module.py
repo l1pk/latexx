@@ -40,11 +40,13 @@ class LatexDataset(Dataset):
         if self.transform:
             image = self.transform(image)
         # Токенизация формулы
-        tokenized = tokenize_latex(formula)  # например, возвращает список int
-        tokenized = torch.tensor(tokenized, dtype=torch.long)
+        tokens = [1]  # sos_token_id
+        tokens += [self.char2idx.get(c, 0) for c in formula]  # 0 - pad для неизвестных
+        tokens.append(2)  # eos_token_id
+        tokens = torch.tensor(tokens, dtype=torch.long)
         return {
             'image': image,
-            'formula': tokenized,  # теперь это тензор!
+            'formula': tokens,
             'image_path': image_path,
         }
 

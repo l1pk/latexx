@@ -37,9 +37,23 @@ class LatexOCRModel(LightningModule):
                  max_seq_len=512,
                  pad_token_id=0,
                  sos_token_id=1,
-                 eos_token_id=2):
+                 eos_token_id=2,
+                 vocab=None):
         super().__init__()
         self.save_hyperparameters()
+
+        if vocab is None:
+            # Соберите все формулы из файла
+            with open("data/annotations.txt", "r") as f:
+                formulas = [line.strip().split(' ', 1)[1] for line in f if len(line.strip().split(' ', 1)) == 2]
+            chars = sorted(set("".join(formulas)))
+            self.idx2char = {i+3: c for i, c in enumerate(chars)}  # 0-pad, 1-sos, 2-eos
+            self.char2idx = {c: i+3 for i, c in enumerate(chars)}
+            self.vocab_size = len(self.idx2char) + 3
+        else:
+            self.idx2char = vocab["idx2char"]
+            self.char2idx = vocab["char2idx"]
+            self.vocab_size = len(self.idx2char) + 3
         
         # Metrics
         self.bleu = BLEUScore()
