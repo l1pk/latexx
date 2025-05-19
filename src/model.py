@@ -222,9 +222,12 @@ class LatexOCRModel(LightningModule):
             ignore_index=self.pad_token_id
         )
         
-        # Generate predictions
-        predictions = self.generate(self.encoder(imgs))
-        
+        features = self.encoder(imgs)  # [B, C, H, W]
+        h, w = features.shape[2], features.shape[3]
+        features = features.permute(0, 2, 3, 1).reshape(features.size(0), h * w, -1)  # [B, H*W, C]
+        features = self.enc_projection(features)  # [B, H*W, hidden_dim]
+        predictions = self.generate(features)
+                
         # Calculate BLEU and WER
         pred_texts = self._tokens_to_text(predictions)
         target_texts = self._tokens_to_text(tgt_tokens)
