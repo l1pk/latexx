@@ -4,16 +4,23 @@ from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning import LightningDataModule
 import torchvision.transforms as T
 from PIL import Image
-from src.utils import tokenize_latex
 from torch.nn.utils.rnn import pad_sequence
-import numpy as np
+
+def build_vocab(annotations_file):
+    with open(annotations_file, "r") as f:
+        formulas = [line.strip().split(' ', 1)[1] for line in f if len(line.strip().split(' ', 1)) == 2]
+    chars = sorted(set("".join(formulas)))
+    idx2char = {i+3: c for i, c in enumerate(chars)}  # 0-pad, 1-sos, 2-eos
+    char2idx = {c: i+3 for i, c in enumerate(chars)}
+    return char2idx, idx2char
 
 class LatexDataset(Dataset):
-    def __init__(self, image_dir, annotations_file, transform=None, max_seq_len=512):
+    def __init__(self, image_dir, annotations_file, char2idx, transform=None, max_seq_len=512):
         self.image_dir = image_dir
         self.transform = transform
         self.max_seq_len = max_seq_len
-        
+        self.char2idx = char2idx
+
         # Parse annotations
         self.data = []
         with open(annotations_file, 'r') as f:
@@ -27,13 +34,11 @@ class LatexDataset(Dataset):
                 image_id = int(image_name.replace('image', ''))
                 image_path = os.path.join(image_dir, f"{image_name}.jpg")
                 self.data.append((image_path, formula, image_id))
-        
-        # Sort by image ID for reproducibility
         self.data.sort(key=lambda x: x[2])
-    
+
     def __len__(self):
         return len(self.data)
-    
+
     def __getitem__(self, idx):
         image_path, formula, _ = self.data[idx]
         image = Image.open(image_path).convert('RGB')
@@ -41,7 +46,7 @@ class LatexDataset(Dataset):
             image = self.transform(image)
         # Токенизация формулы
         tokens = [1]  # sos_token_id
-        tokens += [self.char2idx.get(c, 0) for c in formula]  # 0 - pad для неизвестных
+        tokens += [self.char2idx.get(c, 0) for c in formula]
         tokens.append(2)  # eos_token_id
         tokens = torch.tensor(tokens, dtype=torch.long)
         return {
@@ -49,6 +54,17 @@ class LatexDataset(Dataset):
             'formula': tokens,
             'image_path': image_path,
         }
+
+def collate_fn(batch):
+    images = torch.stack([item['image'] for item in batch])
+    formulas = [item['formula'] for item in batch]
+    formulas_padded = pad_sequence(formulas, batch_first=True, padding_value=0)
+    image_paths = [item['image_path'] for item in batch]
+    return {
+        'image': images,
+        'formula': formulas_padded,
+        'image_path': image_paths,
+    }
 
 class LatexOCRDataModule(LightningDataModule):
     def __init__(self, data_dir="data", batch_size=8, num_workers=4, 
@@ -60,70 +76,46 @@ class LatexOCRDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.train_val_test_split = train_val_test_split
         self.max_seq_len = max_seq_len
-        
-        # Define transforms
+
+        # Словарь токенов
+        annotations_file = os.path.join(self.data_dir, "annotations.txt")
+        self.char2idx, self.idx2char = build_vocab(annotations_file)
+
         self.train_transform = T.Compose([
             T.Resize((img_size, img_size)),
             T.RandomRotation(2),
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
-        
         self.val_transform = T.Compose([
             T.Resize((img_size, img_size)),
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
-    
+
     def setup(self, stage=None):
         annotations_file = os.path.join(self.data_dir, "annotations.txt")
         image_dir = os.path.join(self.data_dir, "images")
-        
-        # Create dataset
         full_dataset = LatexDataset(
             image_dir=image_dir,
             annotations_file=annotations_file,
+            char2idx=self.char2idx,
             transform=self.train_transform,
             max_seq_len=self.max_seq_len
         )
-        
-        # Split dataset
         total_size = len(full_dataset)
         train_size = int(self.train_val_test_split[0] * total_size)
         val_size = int(self.train_val_test_split[1] * total_size)
         test_size = total_size - train_size - val_size
-        
+
         self.train_dataset, self.val_dataset, self.test_dataset = torch.utils.data.random_split(
             full_dataset, [train_size, val_size, test_size],
             generator=torch.Generator().manual_seed(42)
         )
-        
-        # Update transforms for validation and test sets
-        self.val_dataset.dataset = LatexDataset(
-            image_dir=image_dir,
-            annotations_file=annotations_file,
-            transform=self.val_transform,
-            max_seq_len=self.max_seq_len
-        )
-        
-        self.test_dataset.dataset = LatexDataset(
-            image_dir=image_dir,
-            annotations_file=annotations_file,
-            transform=self.val_transform,
-            max_seq_len=self.max_seq_len
-        )
+        # Обновим transform для валидации и теста
+        self.val_dataset.dataset.transform = self.val_transform
+        self.test_dataset.dataset.transform = self.val_transform
 
-    def collate_fn(self, batch):
-        images = torch.stack([item['image'] for item in batch])
-        formulas = [item['formula'] for item in batch]
-        formulas_padded = pad_sequence(formulas, batch_first=True, padding_value=0)  # pad_token_id
-        image_paths = [item['image_path'] for item in batch]
-        return {
-            'image': images,
-            'formula': formulas_padded,
-            'image_path': image_paths,
-        }
-    
     def train_dataloader(self):
         return DataLoader(
             self.train_dataset, 
@@ -131,9 +123,9 @@ class LatexOCRDataModule(LightningDataModule):
             shuffle=True,
             num_workers=self.num_workers,
             pin_memory=True,
-            collate_fn=self.collate_fn
+            collate_fn=collate_fn
         )
-    
+
     def val_dataloader(self):
         return DataLoader(
             self.val_dataset, 
@@ -141,9 +133,9 @@ class LatexOCRDataModule(LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True,
-            collate_fn=self.collate_fn
+            collate_fn=collate_fn
         )
-    
+
     def test_dataloader(self):
         return DataLoader(
             self.test_dataset, 
@@ -151,5 +143,5 @@ class LatexOCRDataModule(LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True,
-            collate_fn=self.collate_fn
+            collate_fn=collate_fn
         )
