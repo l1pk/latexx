@@ -1,1 +1,1 @@
-image1   y = \text{ModFC}(x; c) = W(x \odot (1 + \alpha \text{LayerNorm}(W_c c))) + b
+image1   y = x + 1
