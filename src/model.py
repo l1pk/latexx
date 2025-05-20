@@ -95,32 +95,8 @@ class LatexOCRModel(LightningModule):
         return x.shape[1]
 
     def forward(self, imgs, tgt_tokens=None, teacher_forcing_ratio=1.0):
-        batch_size = imgs.size(0)
-        features = self.encoder(imgs)  # [B, C, H, W]
-        h, w = features.shape[2], features.shape[3]
-        features = features.permute(0, 2, 3, 1).reshape(batch_size, h * w, -1)  # [B, H*W, C]
-        features = self.enc_projection(features)  # [B, H*W, hidden_dim]
-
-        if tgt_tokens is None:
-            return self.generate(features)
-
-        tgt = tgt_tokens[:, :-1]
-        tgt_embeddings = self.embedding(tgt) * math.sqrt(self.hparams.embedding_dim)
-        tgt_embeddings = self.pos_encoder(tgt_embeddings)
-        tgt_embeddings = self.embedding2hidden(tgt_embeddings)
-
-        tgt_mask = self._generate_square_subsequent_mask(tgt.size(1)).to(tgt.device)
-        tgt_padding_mask = (tgt == self.pad_token_id)
-
-        output = self.transformer_decoder(
-            tgt_embeddings,
-            features,
-            tgt_mask=tgt_mask,
-            memory_key_padding_mask=None,
-            tgt_key_padding_mask=tgt_padding_mask
-        )
-        logits = self.output_projection(output)
-        return logits
+    # Просто возвращаем target, чтобы проверить BLEU
+        return tgt_tokens[:, :-1]
 
     def _generate_square_subsequent_mask(self, sz):
         mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
@@ -189,6 +165,9 @@ class LatexOCRModel(LightningModule):
         if batch_idx == 0:
             print("Пример предсказания:", pred_texts[0])
             print("Эталон:", target_texts[0])
+
+        print("Pred tokens:", predictions[0].tolist())
+        print("Target tokens:", tgt_tokens[0].tolist())
 
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_bleu', bleu_score, on_step=False, on_epoch=True, prog_bar=True, logger=True)
