@@ -105,14 +105,20 @@ class LatexOCRDataModule(LightningDataModule):
             transform=self.train_transform,
             max_seq_len=self.max_seq_len
         )
-        
+
         self.train_dataset = full_dataset
         self.val_dataset = full_dataset
         self.test_dataset = full_dataset
 
-        # Обновим transform для валидации и теста
-        self.val_dataset.dataset.transform = self.val_transform
-        self.test_dataset.dataset.transform = self.val_transform
+        if hasattr(self.val_dataset, 'dataset'):
+            self.val_dataset.dataset.transform = self.val_transform
+        else:
+            self.val_dataset.transform = self.val_transform
+
+        if hasattr(self.test_dataset, 'dataset'):
+            self.test_dataset.dataset.transform = self.val_transform
+        else:
+            self.test_dataset.transform = self.val_transform
 
     def train_dataloader(self):
         return DataLoader(
