@@ -17,7 +17,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + self.pe[:x.size(1)].transpose(0, 1)
+        x = x + self.pe[:x.size(1)].squeeze(1)
         return self.dropout(x)
 
 class LatexOCRModel(LightningModule):
@@ -56,7 +56,7 @@ class LatexOCRModel(LightningModule):
 
         # Декодер
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.pos_encoder = PositionalEncoding(embedding_dim, dropout)
+        self.pos_encoder = PositionalEncoding(embedding_dim, dropout, max_len=2048)
         self.embedding2hidden = nn.Linear(embedding_dim, hidden_dim)
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=hidden_dim,
