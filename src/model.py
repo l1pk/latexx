@@ -35,7 +35,8 @@ class LatexOCRModel(LightningModule):
                  sos_token_id=1,
                  eos_token_id=2,
                  char2idx=None,
-                 idx2char=None):
+                 idx2char=None,
+                 encoder_name="identity"):
         super().__init__()
         self.save_hyperparameters()
 
