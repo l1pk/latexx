@@ -105,15 +105,11 @@ class LatexOCRDataModule(LightningDataModule):
             transform=self.train_transform,
             max_seq_len=self.max_seq_len
         )
-        total_size = len(full_dataset)
-        train_size = int(self.train_val_test_split[0] * total_size)
-        val_size = int(self.train_val_test_split[1] * total_size)
-        test_size = total_size - train_size - val_size
+        
+        self.train_dataset = full_dataset
+        self.val_dataset = full_dataset
+        self.test_dataset = full_dataset
 
-        self.train_dataset, self.val_dataset, self.test_dataset = torch.utils.data.random_split(
-            full_dataset, [train_size, val_size, test_size],
-            generator=torch.Generator().manual_seed(42)
-        )
         # Обновим transform для валидации и теста
         self.val_dataset.dataset.transform = self.val_transform
         self.test_dataset.dataset.transform = self.val_transform
