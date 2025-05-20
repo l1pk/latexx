@@ -23,9 +23,13 @@ def train(config: DictConfig):
         max_seq_len=config.model.max_seq_len
     )
     
+    data_module.setup()
+    
     # Initialize model
     model = LatexOCRModel(
-        vocab_size=config.model.vocab_size,
+        vocab_size=len(data_module.idx2char) + 3,
+        char2idx=data_module.char2idx,
+        idx2char=data_module.idx2char,
         embedding_dim=config.model.embedding_dim,
         hidden_dim=config.model.hidden_dim,
         encoder_name=config.model.encoder_name,
