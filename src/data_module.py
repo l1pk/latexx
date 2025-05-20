@@ -22,7 +22,7 @@ class LatexDataset(Dataset):
         self.char2idx = char2idx
 
         # Parse annotations
-        self.data = []
+        self.data = self.data[:1]
         with open(annotations_file, 'r') as f:
             lines = f.readlines()
             for line in lines:

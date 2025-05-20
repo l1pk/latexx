@@ -1,57 +1,11 @@
-# @package _global_
-
-defaults:
-  - _self_
-  - override hydra/job_logging: colorlog
-  - override hydra/hydra_logging: colorlog
-
-data:
-  data_dir: data
-  batch_size: 16
-  num_workers: 4
-  train_val_test_split: [0.8, 0.1, 0.1]
-  img_size: 224
-
 model:
-  vocab_size: 10000
-  embedding_dim: 512
-  hidden_dim: 512
-  encoder_name: resnet50  # Options: resnet18, resnet34, resnet50
-  num_decoder_layers: 6
-  nhead: 8
+  encoder_name: resnet18
+  embedding_dim: 128
+  hidden_dim: 128
+  num_decoder_layers: 2
+  nhead: 4
   dropout: 0.1
-  max_seq_len: 512
-  pad_token_id: 0
-  sos_token_id: 1
-  eos_token_id: 2
 
 training:
-  seed: 42
-  gpus: [0]  # Set to [] for CPU
-  max_epochs: 100
-  learning_rate: 3e-4
-  weight_decay: 1e-4
-  patience: 10
-  precision: 16  # Options: 16, 32
-  gradient_clip_val: 1.0
-  accumulate_grad_batches: 1
-
-inference:
-  model_path: ${hydra:runtime.output_dir}/checkpoints/best_model.ckpt
-  image_path: data/images
-  output_dir: predictions
-
-logging:
-  log_dir: logs
-  experiment_name: latex_ocr
-  use_wandb: false
-  wandb_project: latex_ocr
-  log_every_n_steps: 50
-
-hydra:
-  run:
-    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
-  sweep:
-    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
-  job:
-    chdir: true
+  learning_rate: 1e-3
+  max_epochs: 50

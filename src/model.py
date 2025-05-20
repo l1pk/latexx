@@ -185,13 +185,14 @@ class LatexOCRModel(LightningModule):
         target_texts = self._tokens_to_text(tgt_tokens)
         bleu_score = self.bleu(pred_texts, [[t] for t in target_texts])
         wer_score = self.wer(pred_texts, target_texts)
-        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('val_bleu', bleu_score, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('val_wer', wer_score, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         if batch_idx == 0:
             print("Пример предсказания:", pred_texts[0])
             print("Эталон:", target_texts[0])
+
+        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_bleu', bleu_score, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_wer', wer_score, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         return {'loss': loss, 'bleu': bleu_score, 'wer': wer_score}
 
