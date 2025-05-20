@@ -28,7 +28,7 @@ training:
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
 
-  logging:
+logging:
   log_dir: logs
   experiment_name: latex_ocr
   use_wandb: false
