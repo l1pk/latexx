@@ -27,3 +27,18 @@ training:
   precision: 16  # Options: 16, 32
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
+
+  logging:
+  log_dir: logs
+  experiment_name: latex_ocr
+  use_wandb: false
+  wandb_project: latex_ocr
+  log_every_n_steps: 50
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job:
+    chdir: true
