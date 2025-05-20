@@ -22,7 +22,7 @@ class LatexDataset(Dataset):
         self.char2idx = char2idx
 
         # Parse annotations
-        self.data = self.data[:1]
+        self.data = []
         with open(annotations_file, 'r') as f:
             lines = f.readlines()
             for line in lines:
@@ -35,6 +35,8 @@ class LatexDataset(Dataset):
                 image_path = os.path.join(image_dir, f"{image_name}.jpg")
                 self.data.append((image_path, formula, image_id))
         self.data.sort(key=lambda x: x[2])
+
+        self.data = self.data[:1]
 
     def __len__(self):
         return len(self.data)
