@@ -1,14 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import TransformerDecoder, TransformerDecoderLayer
 from pytorch_lightning import LightningModule
-from torchvision import models
 from torchmetrics.text import BLEUScore, WordErrorRate
 import math
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, dropout=0.1, max_len=5000):
+    def __init__(self, d_model, dropout=0.1, max_len=500):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         position = torch.arange(max_len).unsqueeze(1)
@@ -25,15 +23,14 @@ class PositionalEncoding(nn.Module):
 class LatexOCRModel(LightningModule):
     def __init__(self, 
                  vocab_size,
-                 embedding_dim=512,
-                 hidden_dim=512,
-                 encoder_name="resnet50",
-                 num_decoder_layers=6,
-                 nhead=8,
+                 embedding_dim=128,
+                 hidden_dim=128,
+                 num_decoder_layers=1,
+                 nhead=4,
                  dropout=0.1,
-                 learning_rate=3e-4,
+                 learning_rate=1e-3,
                  weight_decay=1e-4,
-                 max_seq_len=512,
+                 max_seq_len=32,
                  pad_token_id=0,
                  sos_token_id=1,
                  eos_token_id=2,
@@ -42,37 +39,25 @@ class LatexOCRModel(LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        # Словари токенов
         self.char2idx = char2idx
         self.idx2char = idx2char
         self.pad_token_id = pad_token_id
         self.sos_token_id = sos_token_id
         self.eos_token_id = eos_token_id
 
-        # Метрики
         self.bleu = BLEUScore()
         self.wer = WordErrorRate()
 
-        # Vision encoder (CNN backbone)
-        if encoder_name == "resnet18":
-            self.encoder = models.resnet18(weights="IMAGENET1K_V1")
-        elif encoder_name == "resnet34":
-            self.encoder = models.resnet34(weights="IMAGENET1K_V1")
-        elif encoder_name == "resnet50":
-            self.encoder = models.resnet50(weights="IMAGENET1K_V1")
-        else:
-            raise ValueError(f"Unsupported encoder: {encoder_name}")
-        self.encoder = nn.Sequential(*list(self.encoder.children())[:-2])
+        # Минимальный "энкодер" (убираем ResNet для проверки пайплайна)
+        self.encoder = nn.Identity()
+        self.enc_projection = nn.Identity()
+        self.feature_dim = hidden_dim
 
-        self.feature_dim = self._get_encoder_feature_dim()
-        self.enc_projection = nn.Linear(self.feature_dim, hidden_dim)
-
-        # Decoder
+        # Декодер
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.pos_encoder = PositionalEncoding(embedding_dim, dropout)
         self.embedding2hidden = nn.Linear(embedding_dim, hidden_dim)
-
-        decoder_layer = TransformerDecoderLayer(
+        decoder_layer = nn.TransformerDecoderLayer(
             d_model=hidden_dim,
             nhead=nhead,
             dim_feedforward=hidden_dim * 4,
@@ -80,23 +65,28 @@ class LatexOCRModel(LightningModule):
             activation='gelu',
             batch_first=True
         )
-        self.transformer_decoder = TransformerDecoder(
-            decoder_layer,
-            num_layers=num_decoder_layers
-        )
+        self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_decoder_layers)
         self.output_projection = nn.Linear(hidden_dim, vocab_size)
-
         self.max_seq_len = max_seq_len
 
-    def _get_encoder_feature_dim(self):
-        x = torch.zeros(1, 3, 224, 224)
-        with torch.no_grad():
-            x = self.encoder(x)
-        return x.shape[1]
-
     def forward(self, imgs, tgt_tokens=None, teacher_forcing_ratio=1.0):
-    # Просто возвращаем target, чтобы проверить BLEU
-        return tgt_tokens[:, :-1]
+        # imgs не используются, т.к. encoder = Identity
+        batch_size = imgs.size(0)
+        memory = torch.zeros(batch_size, 1, self.feature_dim, device=imgs.device)
+        tgt_inputs = tgt_tokens[:, :-1]
+        tgt_embeddings = self.embedding(tgt_inputs) * math.sqrt(self.hparams.embedding_dim)
+        tgt_embeddings = self.pos_encoder(tgt_embeddings)
+        tgt_embeddings = self.embedding2hidden(tgt_embeddings)
+        tgt_mask = self._generate_square_subsequent_mask(tgt_embeddings.size(1)).to(imgs.device)
+        output = self.transformer_decoder(
+            tgt_embeddings,
+            memory,
+            tgt_mask=tgt_mask,
+            memory_key_padding_mask=None,
+            tgt_key_padding_mask=(tgt_inputs == self.pad_token_id)
+        )
+        logits = self.output_projection(output)
+        return logits
 
     def _generate_square_subsequent_mask(self, sz):
         mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
@@ -114,13 +104,12 @@ class LatexOCRModel(LightningModule):
             tgt_embeddings = self.pos_encoder(tgt_embeddings)
             tgt_embeddings = self.embedding2hidden(tgt_embeddings)
             tgt_mask = self._generate_square_subsequent_mask(ys.size(1)).to(device)
-            tgt_padding_mask = (ys == self.pad_token_id)
             output = self.transformer_decoder(
                 tgt_embeddings,
                 memory,
                 tgt_mask=tgt_mask,
                 memory_key_padding_mask=None,
-                tgt_key_padding_mask=tgt_padding_mask
+                tgt_key_padding_mask=(ys == self.pad_token_id)
             )
             output = self.output_projection(output)
             output = output[:, -1]
@@ -152,11 +141,10 @@ class LatexOCRModel(LightningModule):
             tgt_tokens[:, 1:].reshape(-1),
             ignore_index=self.pad_token_id
         )
-        features = self.encoder(imgs)
-        h, w = features.shape[2], features.shape[3]
-        features = features.permute(0, 2, 3, 1).reshape(features.size(0), h * w, -1)
-        features = self.enc_projection(features)
-        predictions = self.generate(features)
+        # Для генерации memory = encoder(imgs) = zeros
+        batch_size = imgs.size(0)
+        memory = torch.zeros(batch_size, 1, self.feature_dim, device=imgs.device)
+        predictions = self.generate(memory)
         pred_texts = self._tokens_to_text(predictions)
         target_texts = self._tokens_to_text(tgt_tokens)
         bleu_score = self.bleu(pred_texts, [[t] for t in target_texts])
@@ -165,14 +153,12 @@ class LatexOCRModel(LightningModule):
         if batch_idx == 0:
             print("Пример предсказания:", pred_texts[0])
             print("Эталон:", target_texts[0])
-
-        print("Pred tokens:", predictions[0].tolist())
-        print("Target tokens:", tgt_tokens[0].tolist())
+            print("Pred tokens:", predictions[0].tolist())
+            print("Target tokens:", tgt_tokens[0].tolist())
 
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_bleu', bleu_score, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_wer', wer_score, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-
         return {'loss': loss, 'bleu': bleu_score, 'wer': wer_score}
 
     def test_step(self, batch, batch_idx):
@@ -184,21 +170,9 @@ class LatexOCRModel(LightningModule):
             lr=self.hparams.learning_rate,
             weight_decay=self.hparams.weight_decay
         )
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer,
-            T_max=10,
-            eta_min=self.hparams.learning_rate / 10
-        )
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "interval": "step"
-            }
-        }
+        return optimizer
 
     def _tokens_to_text(self, token_ids):
-        # token_ids: Tensor [batch, seq_len] или список списков
         texts = []
         for seq in token_ids:
             if isinstance(seq, torch.Tensor):
