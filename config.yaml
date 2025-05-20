@@ -5,6 +5,12 @@ model:
   num_decoder_layers: 2
   nhead: 4
   dropout: 0.1
+  num_decoder_layers: 6
+  nhead: 8
+  max_seq_len: 512
+  pad_token_id: 0
+  sos_token_id: 1
+  eos_token_id: 2
 
 data:
   data_dir: data
@@ -17,3 +23,9 @@ training:
   seed: 42
   learning_rate: 1e-3
   max_epochs: 50
+  gpus: [0]  # Set to [] for CPU
+  weight_decay: 1e-4
+  patience: 10
+  precision: 16  # Options: 16, 32
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 1
