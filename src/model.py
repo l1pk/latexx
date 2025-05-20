@@ -188,6 +188,11 @@ class LatexOCRModel(LightningModule):
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_bleu', bleu_score, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_wer', wer_score, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
+        if batch_idx == 0:
+            print("Пример предсказания:", pred_texts[0])
+            print("Эталон:", target_texts[0])
+
         return {'loss': loss, 'bleu': bleu_score, 'wer': wer_score}
 
     def test_step(self, batch, batch_idx):
