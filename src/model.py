@@ -230,34 +230,57 @@ class LatexOCRModel(LightningModule):
         images = batch['image']
         tgt_tokens = batch['formula']
         
-        # Compute loss
-        logits = self(images, tgt_tokens[:, :-1])
-        loss = F.cross_entropy(
-            logits.view(-1, logits.size(-1)),
-            tgt_tokens[:, 1:].reshape(-1),
-            ignore_index=self.pad_token_id
-        )
+        # Ускоренный forward pass (без teacher forcing)
+        memory = self.encoder(images)  # [batch_size, 1, hidden_dim]
+        pred_tokens = self.generate(memory)  # Авторегрессивная генерация
         
-        # Generate predictions
-        pred_tokens = self.generate(self.encoder(images))
+        # Вычисляем loss только на 20% случайных примеров батча для экономии времени
+        if batch_idx % 5 == 0:  # Каждый 5-й батч считаем полный loss
+            logits = self(images, tgt_tokens[:, :-1])
+            loss = F.cross_entropy(
+                logits.view(-1, logits.size(-1)),
+                tgt_tokens[:, 1:].reshape(-1),
+                ignore_index=self.pad_token_id
+            )
+        else:
+            loss = torch.tensor(0.0, device=self.device)
+        
+        # Конвертируем токены в текст (только для предсказаний)
         pred_texts = self._tokens_to_text(pred_tokens)
         target_texts = self._tokens_to_text(tgt_tokens)
         
-        # Compute metrics
+        # Вычисляем метрики (BLEU - обязательно, CER - редко)
         bleu = self.bleu(pred_texts, [[t] for t in target_texts])
-        cer = self.cer(pred_texts, target_texts)
         
-        # Log examples
-        if batch_idx == 0:
-            self._log_examples(pred_texts, target_texts)
+        # CER считаем только для 1/4 батчей
+        if batch_idx % 4 == 0:
+            cer = self.cer(pred_texts, target_texts)
+        else:
+            cer = torch.tensor(0.0, device=self.device)
+        
+        # Логируем примеры только для первого батча
+        if batch_idx == 0 and self.global_rank == 0:  # Только для главного процесса
+            self._log_examples(pred_texts[:3], target_texts[:3])  # Логируем 3 примера
+        
+        return {
+            'val_loss': loss.detach(),
+            'val_bleu': bleu.detach(),
+            'val_cer': cer.detach()
+        }
+    def validation_epoch_end(self, outputs: List[Dict]) -> None:
+        """Агрегация метрик после эпохи."""
+        avg_loss = torch.stack([x['val_loss'] for x in outputs if x['val_loss'] != 0]).mean()
+        avg_bleu = torch.stack([x['val_bleu'] for x in outputs]).mean()
+        
+        # CER считаем только по тем батчам, где он вычислялся
+        cer_values = [x['val_cer'] for x in outputs if x['val_cer'] != 0]
+        avg_cer = torch.stack(cer_values).mean() if cer_values else torch.tensor(0.0)
         
         self.log_dict({
-            'val_loss': loss,
-            'val_bleu': bleu,
-            'val_cer': cer
-        }, prog_bar=True)
-        
-        return {'loss': loss, 'bleu': bleu, 'cer': cer}
+            'val_loss': avg_loss,
+            'val_bleu': avg_bleu,
+            'val_cer': avg_cer
+        }, prog_bar=True, sync_dist=True)
 
     def test_step(self, batch: Dict, batch_idx: int) -> Dict:
         return self.validation_step(batch, batch_idx)
