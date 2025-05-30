@@ -10,21 +10,26 @@ from torchvision.models import resnet18, resnet50
 from timm.models.vision_transformer import VisionTransformer
 
 class PositionalEncoding(nn.Module):
-    """Positional encoding for transformer decoder."""
-    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+    """Позиционное кодирование для декодера трансформера."""
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 512):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         
-        position = torch.arange(max_len).unsqueeze(1)
+        # Создаём буфер позиционных кодировок
+        position = torch.arange(max_len).unsqueeze(1)  # (max_len, 1)
         div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
         
         pe = torch.zeros(max_len, 1, d_model)
-        pe[:, 0, 0::2] = torch.sin(position * div_term)
-        pe[:, 0, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)  # чётные индексы
+        pe[:, 0, 1::2] = torch.cos(position * div_term)  # нечётные индексы
+        self.register_buffer('pe', pe)  # сохраняем в буфер модели
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.pe[:x.size(1)]
+        """
+        Добавляем позиционные кодировки к входным эмбеддингам.
+        x: тензор формы (batch_size, seq_len, embedding_dim)
+        """
+        x = x + self.pe[:x.size(1)].transpose(0, 1)  # (seq_len, 1, d_model) -> (1, seq_len, d_model)
         return self.dropout(x)
 
 class Encoder(nn.Module):
