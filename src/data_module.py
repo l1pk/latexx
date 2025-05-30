@@ -166,8 +166,9 @@ class LatexOCRDataModule(LightningDataModule):
             self.train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=self.num_workers,
-            pin_memory=True,
+            num_workers=8,          
+            pin_memory=True,       
+            persistent_workers=True,
             collate_fn=collate_fn
         )
 

@@ -33,20 +33,23 @@ data:
 
 model:
   encoder_name: "vit_tiny"  # vit_tiny, vit_small, vit_base, resnet18, resnet50
-  embedding_dim: 256
-  hidden_dim: 256
-  num_decoder_layers: 3
-  nhead: 8
+  embedding_dim: 192
+  hidden_dim: 192
+  num_decoder_layers: 2
+  nhead: 4
   dropout: 0.1
   pad_token_id: 0
   sos_token_id: 1
   eos_token_id: 2
   max_seq_len: 512
+  precision: "16-mixed"
 
 training:
+  batch_size: 64          
+  accumulate_grad_batches: 2
   seed: 42
-  max_epochs: 100
-  patience: 10
+  max_epochs: 10
+  patience: 3
   learning_rate: 1e-4
   weight_decay: 1e-4
   gradient_clip_val: 1.0
