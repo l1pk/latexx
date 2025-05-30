@@ -11,8 +11,8 @@ from pytorch_lightning.callbacks import (
 )
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from model import LatexOCRModel
-from data_module import LatexOCRDataModule
+from src.model import LatexOCRModel
+from src.data_module import LatexOCRDataModule
 
 @hydra.main(config_path="../", config_name="config", version_base="1.3")
 def train(config: DictConfig):
