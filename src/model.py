@@ -123,12 +123,6 @@ class LatexOCRModel(LightningModule):
         # Decoder
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.pos_encoder = PositionalEncoding(embedding_dim, dropout)
-
-        self.embedding_norm = nn.LayerNorm(embedding_dim)
-        self.output_norm = nn.LayerNorm(hidden_dim)
-        
-        # Инициализация с меньшим масштабом
-        self._init_weights(init_scale=0.02)
         
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=hidden_dim,
@@ -144,10 +138,11 @@ class LatexOCRModel(LightningModule):
         # Initialize weights
         self._init_weights()
 
-    def _init_weights(self, init_scale=0.02):
+    def _init_weights(self):
+        """Initialize weights for better convergence."""
         for p in self.parameters():
             if p.dim() > 1:
-                nn.init.xavier_uniform_(p, gain=init_scale)
+                nn.init.xavier_uniform_(p)
 
     def forward(
         self, 
@@ -163,10 +158,9 @@ class LatexOCRModel(LightningModule):
             return self.generate(memory)
         
         # Training mode
-        tgt_emb = self.embedding_norm(tgt_tokens) * math.sqrt(self.hparams.embedding_dim)
+        tgt_emb = self.embedding(tgt_tokens) * math.sqrt(self.hparams.embedding_dim)
         tgt_emb = self.pos_encoder(tgt_emb)
         
-        memory = self.output_norm(memory)
         # Create masks
         tgt_mask = self._generate_square_subsequent_mask(tgt_emb.size(1)).to(images.device)
         tgt_pad_mask = (tgt_tokens == self.pad_token_id)
@@ -221,9 +215,6 @@ class LatexOCRModel(LightningModule):
     def training_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
         images = batch['image']
         tgt_tokens = batch['formula']
-
-        if torch.isnan(images).any() or torch.isinf(images).any():
-            raise ValueError("NaN/Inf в входных данных")
 
         print("Input range:", images.min(), images.max())  # Должно быть ~[-2.5, 2.5]
         print("Target tokens:", tgt_tokens.unique())
