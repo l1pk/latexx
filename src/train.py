@@ -1,16 +1,22 @@
+# src/train.py
 import os
 import hydra
 from omegaconf import DictConfig
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
+from pytorch_lightning.callbacks import (
+    ModelCheckpoint, 
+    EarlyStopping, 
+    LearningRateMonitor,
+    RichProgressBar
+)
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from .model import LatexOCRModel
-from .data_module import LatexOCRDataModule
+from model import LatexOCRModel
+from data_module import LatexOCRDataModule
 
 @hydra.main(config_path="../", config_name="config", version_base="1.3")
 def train(config: DictConfig):
-    # Set up seeds for reproducibility
+    # Set random seeds for reproducibility
     pl.seed_everything(config.training.seed)
     
     # Initialize data module
@@ -20,14 +26,12 @@ def train(config: DictConfig):
         num_workers=config.data.num_workers,
         train_val_test_split=config.data.train_val_test_split,
         img_size=config.data.img_size,
-        max_seq_len=config.model.max_seq_len
+        max_seq_len=config.data.max_seq_len
     )
     
-    data_module.setup()
-    
-    # Initialize model
+    # Build model
     model = LatexOCRModel(
-        vocab_size=len(data_module.idx2char) + 3,
+        vocab_size=len(data_module.idx2char),
         char2idx=data_module.char2idx,
         idx2char=data_module.idx2char,
         embedding_dim=config.model.embedding_dim,
@@ -38,57 +42,67 @@ def train(config: DictConfig):
         dropout=config.model.dropout,
         learning_rate=config.training.learning_rate,
         weight_decay=config.training.weight_decay,
-        max_seq_len=config.model.max_seq_len,
+        max_seq_len=config.data.max_seq_len,
         pad_token_id=config.model.pad_token_id,
         sos_token_id=config.model.sos_token_id,
         eos_token_id=config.model.eos_token_id
     )
     
-    # Set up callbacks
+    # Callbacks
     checkpoint_callback = ModelCheckpoint(
-        filename="{epoch}-{val_loss:.4f}-{val_bleu:.4f}",
-        save_top_k=3,
-        verbose=True,
         monitor="val_bleu",
-        mode="max"
+        mode="max",
+        filename="best-{epoch}-{val_bleu:.2f}",
+        save_top_k=1,
+        save_last=True
     )
     
-    early_stopping_callback = EarlyStopping(
+    early_stopping = EarlyStopping(
         monitor="val_bleu",
         patience=config.training.patience,
         mode="max"
     )
     
     lr_monitor = LearningRateMonitor(logging_interval="step")
+    progress_bar = RichProgressBar()
     
-    # Set up logger
-    loggers = [TensorBoardLogger(save_dir=config.logging.log_dir, name=config.logging.experiment_name)]
+    # Loggers
+    loggers = [
+        TensorBoardLogger(
+            save_dir=config.logging.log_dir,
+            name=config.logging.experiment_name,
+            version=os.environ.get("SLURM_JOB_ID", None)
+        )
+    ]
     
     if config.logging.use_wandb:
-        wandb_logger = WandbLogger(
-            project=config.logging.wandb_project,
-            name=config.logging.experiment_name
+        loggers.append(
+            WandbLogger(
+                project=config.logging.wandb_project,
+                name=config.logging.experiment_name,
+                log_model="all"
+            )
         )
-        loggers.append(wandb_logger)
     
-    # Initialize trainer
+    # Trainer
     trainer = pl.Trainer(
         max_epochs=config.training.max_epochs,
-        accelerator="gpu" if config.training.gpus else "cpu",
-        devices=config.training.gpus if config.training.gpus else None,
-        callbacks=[checkpoint_callback, early_stopping_callback, lr_monitor],
+        accelerator="auto",
+        devices="auto",
+        callbacks=[checkpoint_callback, early_stopping, lr_monitor, progress_bar],
         logger=loggers,
         precision=config.training.precision,
         gradient_clip_val=config.training.gradient_clip_val,
         accumulate_grad_batches=config.training.accumulate_grad_batches,
-        log_every_n_steps=config.logging.log_every_n_steps
+        log_every_n_steps=config.logging.log_every_n_steps,
+        deterministic=True
     )
     
-    # Train model
-    trainer.fit(model, data_module)
+    # Train
+    trainer.fit(model, datamodule=data_module)
     
-    # Test model
-    trainer.test(model, data_module)
+    # Test
+    trainer.test(model, datamodule=data_module, ckpt_path="best")
 
 if __name__ == "__main__":
     train()
