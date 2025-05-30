@@ -58,10 +58,9 @@ def train(config: DictConfig):
     )
     
     early_stopping = EarlyStopping(
-        monitor="val_loss",  
-        mode="min",         
+        monitor="val_bleu",
         patience=config.training.patience,
-        check_on_train_epoch_end=False  
+        mode="max"
     )
     
     lr_monitor = LearningRateMonitor(logging_interval="step")
@@ -93,10 +92,10 @@ def train(config: DictConfig):
         callbacks=[checkpoint_callback, early_stopping, lr_monitor, progress_bar],
         logger=loggers,
         precision=config.training.precision,
+        gradient_clip_val=config.training.gradient_clip_val,
         accumulate_grad_batches=config.training.accumulate_grad_batches,
         log_every_n_steps=config.logging.log_every_n_steps,
-        deterministic=True,
-        gradient_clip_val=1.0
+        deterministic=True
     )
     
     # Train
