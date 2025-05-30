@@ -216,6 +216,9 @@ class LatexOCRModel(LightningModule):
         images = batch['image']
         tgt_tokens = batch['formula']
 
+        if torch.isnan(images).any() or torch.isinf(images).any():
+            raise ValueError("NaN/Inf в входных данных")
+
         print("Input range:", images.min(), images.max())  # Должно быть ~[-2.5, 2.5]
         print("Target tokens:", tgt_tokens.unique())
         
@@ -229,38 +232,30 @@ class LatexOCRModel(LightningModule):
         self.log('train_loss', loss, prog_bar=True)
         return loss
 
-    def validation_step(self, batch: Dict, batch_idx: int) -> Dict:
+    def validation_step(self, batch, batch_idx):
         images = batch['image']
         tgt_tokens = batch['formula']
         
-        # Compute loss
-        logits = self(images, tgt_tokens[:, :-1])
-        loss = F.cross_entropy(
-            logits.view(-1, logits.size(-1)),
-            tgt_tokens[:, 1:].reshape(-1),
-            ignore_index=self.pad_token_id
-        )
-        
-        # Generate predictions
-        pred_tokens = self.generate(self.encoder(images))
-        pred_texts = self._tokens_to_text(pred_tokens)
-        target_texts = self._tokens_to_text(tgt_tokens)
-        
-        # Compute metrics
-        bleu = self.bleu(pred_texts, [[t] for t in target_texts])
-        cer = self.cer(pred_texts, target_texts)
-        
-        # Log examples
-        if batch_idx == 0:
-            self._log_examples(pred_texts, target_texts)
-        
-        self.log_dict({
-            'val_loss': loss,
-            'val_bleu': bleu,
-            'val_cer': cer
-        }, prog_bar=True)
-        
-        return {'loss': loss, 'bleu': bleu, 'cer': cer}
+        with torch.no_grad():
+            memory = self.encoder(images)
+            pred_tokens = self.generate(memory)
+            
+            logits = self(images, tgt_tokens[:, :-1])
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
+                                tgt_tokens[:, 1:].reshape(-1),
+                                ignore_index=self.pad_token_id)
+            
+            pred_texts = self._tokens_to_text(pred_tokens)
+            target_texts = self._tokens_to_text(tgt_tokens)
+            
+            bleu = self.bleu(pred_texts, [[t] for t in target_texts])
+            cer = self.cer(pred_texts, target_texts)
+            
+            self.log_dict({
+                "val_loss": loss,
+                "val_bleu": bleu,
+                "val_cer": cer
+            }, batch_size=images.size(0), sync_dist=True)
 
     def test_step(self, batch: Dict, batch_idx: int) -> Dict:
         return self.validation_step(batch, batch_idx)
