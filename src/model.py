@@ -215,6 +215,9 @@ class LatexOCRModel(LightningModule):
     def training_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
         images = batch['image']
         tgt_tokens = batch['formula']
+
+        print("Input range:", images.min(), images.max())  # Должно быть ~[-2.5, 2.5]
+        print("Target tokens:", tgt_tokens.unique())
         
         logits = self(images, tgt_tokens[:, :-1])
         loss = F.cross_entropy(
