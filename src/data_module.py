@@ -175,7 +175,7 @@ class LatexOCRDataModule(LightningDataModule):
     def val_dataloader(self) -> DataLoader:
         return DataLoader(
             self.val_dataset,
-            batch_size=self.batch_size,
+            batch_size=self.batch_size * 2,
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True,
