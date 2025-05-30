@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 import torchvision.transforms as T
 from torchmetrics.text import BLEUScore, CharErrorRate
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Dict, Union, Optional
 
 def preprocess_image(image_path: str, img_size: int = 224) -> torch.Tensor:
     """Preprocess image for inference."""
