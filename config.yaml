@@ -55,6 +55,8 @@ training:
   gradient_clip_val: 1.0
   gpus: 1
   precision: 16
+  val_check_interval: 0.5  
+  limit_val_batches: 0.25
 
 logging:
   log_dir: "logs"
