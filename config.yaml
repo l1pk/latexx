@@ -53,7 +53,6 @@ training:
   learning_rate: 1e-4
   weight_decay: 1e-4
   gradient_clip_val: 1.0
-  accumulate_grad_batches: 1
   gpus: 1
   precision: 16
 
