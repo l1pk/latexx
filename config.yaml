@@ -1,11 +1,14 @@
 # config.yaml
 defaults:
+  - _self_
   - hydra/job_logging: colorlog
-  - hydra/hydra_logging: hydra
+  - hydra/hydra_logging: default
 
 hydra:
   run:
     dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweeper:
+    params: {}
   job_logging:
     version: 1
     formatters:
