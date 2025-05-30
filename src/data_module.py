@@ -64,6 +64,10 @@ class LatexDataset(Dataset):
             
         # Tokenize formula
         tokens = [self.char2idx.get(c, 0) for c in formula]
+
+        if len(tokens) > self.max_seq_len - 2:  # -2 для <sos> и <eos>
+            raise ValueError(f"Формула слишком длинная: {formula}")
+        
         tokens = [self.char2idx['<sos>']] + tokens + [self.char2idx['<eos>']]
         tokens = torch.tensor(tokens, dtype=torch.long)
         
