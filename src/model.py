@@ -230,11 +230,7 @@ class LatexOCRModel(LightningModule):
         images = batch['image']
         tgt_tokens = batch['formula']
         
-        # Forward pass
-        memory = self.encoder(images)
-        pred_tokens = self.generate(memory)
-        
-        # Вычисляем loss
+        # Compute loss
         logits = self(images, tgt_tokens[:, :-1])
         loss = F.cross_entropy(
             logits.view(-1, logits.size(-1)),
@@ -242,34 +238,26 @@ class LatexOCRModel(LightningModule):
             ignore_index=self.pad_token_id
         )
         
-        # Конвертируем токены в текст
+        # Generate predictions
+        pred_tokens = self.generate(self.encoder(images))
         pred_texts = self._tokens_to_text(pred_tokens)
         target_texts = self._tokens_to_text(tgt_tokens)
         
-        # Вычисляем метрики
+        # Compute metrics
         bleu = self.bleu(pred_texts, [[t] for t in target_texts])
         cer = self.cer(pred_texts, target_texts)
         
-        # Логируем метрики
-        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
-        self.log("val_bleu", bleu, prog_bar=True, sync_dist=True)
-        self.log("val_cer", cer, sync_dist=True)
+        # Log examples
+        if batch_idx == 0:
+            self._log_examples(pred_texts, target_texts)
         
-        # Логируем примеры для первого батча
-        if batch_idx == 0 and self.global_rank == 0:
-            self._log_examples(pred_texts[:3], target_texts[:3])
+        self.log_dict({
+            'val_loss': loss,
+            'val_bleu': bleu,
+            'val_cer': cer
+        }, prog_bar=True)
         
-        return {'val_loss': loss, 'val_bleu': bleu, 'val_cer': cer}
-    
-    def on_validation_epoch_end(self):
-        outputs = self.trainer.callback_metrics
-        
-        # Логируем примеры (берем из первого батча)
-        if hasattr(self, 'last_val_outputs') and self.last_val_outputs:
-            pred_texts = self.last_val_outputs[0]['pred_texts']
-            target_texts = self.last_val_outputs[0]['target_texts']
-            if pred_texts and target_texts and self.global_rank == 0:
-                self._log_examples(pred_texts[:3], target_texts[:3])
+        return {'loss': loss, 'bleu': bleu, 'cer': cer}
 
     def test_step(self, batch: Dict, batch_idx: int) -> Dict:
         return self.validation_step(batch, batch_idx)
