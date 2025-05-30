@@ -1,8 +1,8 @@
 # config.yaml
 defaults:
   - _self_
-  - hydra/job_logging: colorlog
-  - hydra/hydra_logging: default
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: default
 
 hydra:
   run:
