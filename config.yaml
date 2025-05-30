@@ -1,8 +1,7 @@
 # config.yaml
 defaults:
-  - _self_
-  - override hydra/job_logging: custom
-  - override hydra/hydra_logging: custom
+  - hydra/job_logging: colorlog
+  - hydra/hydra_logging: hydra
 
 hydra:
   run:
@@ -17,6 +16,9 @@ hydra:
         class: logging.StreamHandler
         formatter: simple
         stream: ext://sys.stdout
+    root:
+      level: INFO
+      handlers: [console]
 
 data:
   data_dir: "data"
