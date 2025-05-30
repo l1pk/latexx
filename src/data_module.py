@@ -45,7 +45,8 @@ class LatexDataset(Dataset):
                 if not formula:
                     continue
                 
-                image_path = os.path.join(image_dir, f"image{idx+1}.jpg")
+                # Формат файла: 0000000.png, 0000001.png, ...
+                image_path = os.path.join(image_dir, f"{idx:07d}.png")  # 7 цифр с ведущими нулями
                 if not os.path.exists(image_path):
                     continue
                     
